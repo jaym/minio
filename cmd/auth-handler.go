@@ -129,14 +129,12 @@ func checkAdminRequestAuthType(r *http.Request, region string) APIErrorCode {
 			return s3Err
 		}
 
-		s3Err = ErrAccessDenied
 		if !owner {
-			return s3Err
+			return ErrAccessDenied
 		}
 
 		// we only support V4 (no presign) with auth body
 		s3Err = isReqAuthenticated(r, region)
-
 	}
 	if s3Err != ErrNone {
 		reqInfo := (&logger.ReqInfo{}).AppendTags("requestHeaders", dumpRequest(r))
@@ -156,21 +154,21 @@ func getSessionToken(r *http.Request) (token string) {
 }
 
 // Fetch claims in the security token returned by the client and validate the token.
-func getClaimsFromToken(r *http.Request, claims map[string]interface{}) APIErrorCode {
+func getClaimsFromToken(r *http.Request) (map[string]interface{}, APIErrorCode) {
+	claims := make(map[string]interface{})
 	token := getSessionToken(r)
-	if token != "" {
-		p := &jwtgo.Parser{
-			SkipClaimsValidation: true,
-		}
-		jtoken, err := p.ParseWithClaims(token, jwtgo.MapClaims(claims), stsTokenCallback)
-		if err != nil {
-			return toAPIErrorCode(err)
-		}
-		if !jtoken.Valid {
-			return toAPIErrorCode(errAuthentication)
-		}
+	if token == "" {
+		return nil, ErrNone
 	}
-	return ErrNone
+	p := &jwtgo.Parser{}
+	jtoken, err := p.ParseWithClaims(token, jwtgo.MapClaims(claims), stsTokenCallback)
+	if err != nil {
+		return nil, toAPIErrorCode(err)
+	}
+	if !jtoken.Valid {
+		return nil, toAPIErrorCode(errAuthentication)
+	}
+	return claims, ErrNone
 }
 
 func checkRequestAuthType(ctx context.Context, r *http.Request, action policy.Action, bucketName, objectName string) (s3Err APIErrorCode) {
@@ -222,8 +220,7 @@ func checkRequestAuthType(ctx context.Context, r *http.Request, action policy.Ac
 		r.Body = ioutil.NopCloser(bytes.NewReader(payload))
 	}
 
-	var claims = map[string]interface{}{}
-	s3Err = getClaimsFromToken(r, claims)
+	claims, s3Err := getClaimsFromToken(r)
 	if s3Err != ErrNone {
 		return s3Err
 	}
@@ -385,8 +382,7 @@ func isPutAllowed(atype authType, bucketName, objectName string, r *http.Request
 		return s3Err
 	}
 
-	var claims = map[string]interface{}{}
-	s3Err = getClaimsFromToken(r, claims)
+	claims, s3Err := getClaimsFromToken(r)
 	if s3Err != ErrNone {
 		return s3Err
 	}
@@ -404,6 +400,7 @@ func isPutAllowed(atype authType, bucketName, objectName string, r *http.Request
 		}
 		return ErrAccessDenied
 	}
+
 	if globalIAMSys.IsAllowed(iampolicy.Args{
 		AccountName:     accountName,
 		Action:          policy.PutObjectAction,

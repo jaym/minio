@@ -472,6 +472,8 @@ func getServiceCmdRequest(cmd cmdType, cred auth.Credentials, body []byte) (*htt
 
 	// Set body
 	req.Body = ioutil.NopCloser(bytes.NewReader(body))
+	req.ContentLength = int64(len(body))
+
 	// Set sha-sum header
 	req.Header.Set("X-Amz-Content-Sha256", getSHA256Hash(body))
 
@@ -720,7 +722,7 @@ func TestSetConfigHandler(t *testing.T) {
 	// Check that a very large config file returns an error.
 	{
 		// Make a large enough config string
-		invalidCfg := []byte(strings.Repeat("A", maxConfigJSONSize+1))
+		invalidCfg := []byte(strings.Repeat("A", maxEConfigJSONSize+1))
 		req, err := buildAdminRequest(queryVal, http.MethodPut, "/config",
 			int64(len(invalidCfg)), bytes.NewReader(invalidCfg))
 		if err != nil {

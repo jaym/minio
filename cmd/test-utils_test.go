@@ -361,7 +361,10 @@ func UnstartedTestServer(t TestErrHandler, instanceType string) TestServer {
 	globalIAMSys.Init(objLayer)
 
 	globalPolicySys = NewPolicySys()
+	globalPolicySys.Init(objLayer)
+
 	globalNotificationSys = NewNotificationSys(globalServerConfig, testServer.Disks)
+	globalNotificationSys.Init(objLayer)
 
 	return testServer
 }
@@ -507,7 +510,7 @@ func newTestConfig(bucketLocation string, obj ObjectLayer) (err error) {
 	globalServerConfig.SetRegion(bucketLocation)
 
 	// Save config.
-	return saveServerConfig(obj, globalServerConfig)
+	return saveServerConfig(context.Background(), obj, globalServerConfig)
 }
 
 // Deleting the temporary backend and stopping the server.

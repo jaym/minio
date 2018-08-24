@@ -190,23 +190,8 @@ func doesPresignV2SignatureMatch(r *http.Request) APIErrorCode {
 }
 
 func getReqAccessKeyV2(r *http.Request) (string, bool, APIErrorCode) {
-	checkOwner := func(accessKey string) (bool, APIErrorCode) {
-		var owner = true
-		if globalServerConfig.GetCredential().AccessKey != accessKey {
-			if globalIAMSys == nil {
-				return false, ErrInvalidAccessKeyID
-			}
-			// Check if the access key is part of users credentials.
-			if _, ok := globalIAMSys.GetUser(accessKey); !ok {
-				return false, ErrInvalidAccessKeyID
-			}
-			owner = false
-		}
-		return owner, ErrNone
-	}
-
 	if accessKey := r.URL.Query().Get("AWSAccessKeyId"); accessKey != "" {
-		owner, s3Err := checkOwner(accessKey)
+		owner, s3Err := checkKeyValid(accessKey)
 		return accessKey, owner, s3Err
 	}
 
@@ -223,7 +208,7 @@ func getReqAccessKeyV2(r *http.Request) (string, bool, APIErrorCode) {
 		return "", false, ErrMissingFields
 	}
 
-	owner, s3Err := checkOwner(keySignFields[0])
+	owner, s3Err := checkKeyValid(keySignFields[0])
 	return keySignFields[0], owner, s3Err
 }
 

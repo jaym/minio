@@ -879,7 +879,7 @@ var errorCodeResponse = map[APIErrorCode]APIError{
 	ErrAdminConfigTooLarge: {
 		Code: "XMinioAdminConfigTooLarge",
 		Description: fmt.Sprintf("Configuration data provided exceeds the allowed maximum of %d bytes",
-			maxConfigJSONSize),
+			maxEConfigJSONSize),
 		HTTPStatusCode: http.StatusBadRequest,
 	},
 	ErrAdminConfigBadJSON: {

@@ -89,6 +89,29 @@ const (
 	AllActions = "s3:*"
 )
 
+// List of all supported actions.
+var supportedActions = map[Action]struct{}{
+	AllActions:                       {},
+	AbortMultipartUploadAction:       {},
+	CreateBucketAction:               {},
+	DeleteBucketAction:               {},
+	DeleteBucketPolicyAction:         {},
+	DeleteObjectAction:               {},
+	GetBucketLocationAction:          {},
+	GetBucketNotificationAction:      {},
+	GetBucketPolicyAction:            {},
+	GetObjectAction:                  {},
+	HeadBucketAction:                 {},
+	ListAllMyBucketsAction:           {},
+	ListBucketAction:                 {},
+	ListBucketMultipartUploadsAction: {},
+	ListenBucketNotificationAction:   {},
+	ListMultipartUploadPartsAction:   {},
+	PutBucketNotificationAction:      {},
+	PutBucketPolicyAction:            {},
+	PutObjectAction:                  {},
+}
+
 // isObjectAction - returns whether action is object type or not.
 func (action Action) isObjectAction() bool {
 	switch action {
@@ -108,24 +131,8 @@ func (action Action) Match(a Action) bool {
 
 // IsValid - checks if action is valid or not.
 func (action Action) IsValid() bool {
-	switch action {
-	case AbortMultipartUploadAction, CreateBucketAction, DeleteBucketAction:
-		fallthrough
-	case DeleteBucketPolicyAction, DeleteObjectAction, GetBucketLocationAction:
-		fallthrough
-	case GetBucketNotificationAction, GetBucketPolicyAction, GetObjectAction:
-		fallthrough
-	case HeadBucketAction, ListAllMyBucketsAction, ListBucketAction:
-		fallthrough
-	case ListBucketMultipartUploadsAction, ListenBucketNotificationAction:
-		fallthrough
-	case ListMultipartUploadPartsAction, PutBucketNotificationAction:
-		fallthrough
-	case PutBucketPolicyAction, PutObjectAction, AllActions:
-		return true
-	}
-
-	return false
+	_, ok := supportedActions[action]
+	return ok
 }
 
 // MarshalJSON - encodes Action to JSON data.

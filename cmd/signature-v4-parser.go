@@ -61,21 +61,7 @@ func getReqAccessKeyV4(r *http.Request, region string) (string, bool, APIErrorCo
 			return "", false, err
 		}
 	}
-	checkOwner := func(accessKey string) (bool, APIErrorCode) {
-		var owner = true
-		if globalServerConfig.GetCredential().AccessKey != accessKey {
-			if globalIAMSys == nil {
-				return false, ErrInvalidAccessKeyID
-			}
-			// Check if the access key is part of users credentials.
-			if _, ok := globalIAMSys.GetUser(accessKey); !ok {
-				return false, ErrInvalidAccessKeyID
-			}
-			owner = false
-		}
-		return owner, ErrNone
-	}
-	owner, s3Err := checkOwner(ch.accessKey)
+	owner, s3Err := checkKeyValid(ch.accessKey)
 	return ch.accessKey, owner, s3Err
 }
 
