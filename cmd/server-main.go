@@ -341,7 +341,7 @@ func serverMain(ctx *cli.Context) {
 
 	// Create new IAM system.
 	globalIAMSys = NewIAMSys()
-	if err := globalIAMSys.Init(newObject); err != nil {
+	if err = globalIAMSys.Init(newObject); err != nil {
 		logger.Fatal(err, "Unable to initialize IAM system")
 	}
 
@@ -349,7 +349,7 @@ func serverMain(ctx *cli.Context) {
 	globalPolicySys = NewPolicySys()
 
 	// Initialize policy system.
-	if err := globalPolicySys.Init(newObject); err != nil {
+	if err = globalPolicySys.Init(newObject); err != nil {
 		logger.Fatal(err, "Unable to initialize policy system")
 	}
 
@@ -357,7 +357,7 @@ func serverMain(ctx *cli.Context) {
 	globalNotificationSys = NewNotificationSys(globalServerConfig, globalEndpoints)
 
 	// Initialize notification system.
-	if err := globalNotificationSys.Init(newObject); err != nil {
+	if err = globalNotificationSys.Init(newObject); err != nil {
 		logger.Fatal(err, "Unable to initialize notification system")
 	}
 

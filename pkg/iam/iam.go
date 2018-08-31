@@ -51,7 +51,7 @@ type IAM struct {
 	Identity struct {
 		Type   iamType `json:"type"`
 		OpenID struct {
-			JWT validator.JWTArgs `json:"jwt"`
+			JWKS validator.JWKSArgs `json:"jwks"`
 		} `json:"openid"`
 		Minio struct {
 			Users map[string]auth.Credentials `json:"users"`
@@ -81,7 +81,7 @@ func New() (*IAM, error) {
 			return cfg, err
 		}
 		cfg.Identity.Type = IAMOpenID
-		cfg.Identity.OpenID.JWT.WebKeyURL = u
+		cfg.Identity.OpenID.JWKS.URL = u
 	}
 	if opaURL := os.Getenv("MINIO_IAM_OPA_URL"); opaURL != "" {
 		u, err := xnet.ParseURL(opaURL)
@@ -115,8 +115,8 @@ func (iam *IAM) GetAuthValidators() *validator.Validators {
 	validators := validator.NewValidators()
 
 	if iam.Identity.Type == IAMOpenID {
-		if iam.Identity.OpenID.JWT.WebKeyURL != nil {
-			validators.Add(validator.NewJWT(iam.Identity.OpenID.JWT))
+		if iam.Identity.OpenID.JWKS.URL != nil {
+			validators.Add(validator.NewJWT(iam.Identity.OpenID.JWKS))
 		}
 	}
 

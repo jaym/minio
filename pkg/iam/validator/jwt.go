@@ -31,29 +31,29 @@ import (
 	xnet "github.com/minio/minio/pkg/net"
 )
 
-// JWTArgs - RSA authentication target arguments
-type JWTArgs struct {
-	WebKeyURL *xnet.URL `json:"webKeyURL"`
+// JWKSArgs - RSA authentication target arguments
+type JWKSArgs struct {
+	URL       *xnet.URL `json:"url"`
 	publicKey crypto.PublicKey
 }
 
 // Validate JWT authentication target arguments
-func (r *JWTArgs) Validate() error {
+func (r *JWKSArgs) Validate() error {
 	return nil
 }
 
 // UnmarshalJSON - decodes JSON data.
-func (r *JWTArgs) UnmarshalJSON(data []byte) error {
+func (r *JWKSArgs) UnmarshalJSON(data []byte) error {
 	// subtype to avoid recursive call to UnmarshalJSON()
-	type subJWTArgs JWTArgs
-	var sr subJWTArgs
+	type subJWKSArgs JWKSArgs
+	var sr subJWKSArgs
 
 	if err := json.Unmarshal(data, &sr); err != nil {
 		return err
 	}
 
-	ar := JWTArgs(sr)
-	if ar.WebKeyURL == nil {
+	ar := JWKSArgs(sr)
+	if ar.URL == nil {
 		*r = ar
 		return nil
 	}
@@ -63,9 +63,9 @@ func (r *JWTArgs) UnmarshalJSON(data []byte) error {
 
 	insecureClient := &http.Client{Transport: newCustomHTTPTransport(true)}
 	client := &http.Client{Transport: newCustomHTTPTransport(false)}
-	resp, err := client.Get(ar.WebKeyURL.String())
+	resp, err := client.Get(ar.URL.String())
 	if err != nil {
-		resp, err = insecureClient.Get(ar.WebKeyURL.String())
+		resp, err = insecureClient.Get(ar.URL.String())
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func (r *JWTArgs) UnmarshalJSON(data []byte) error {
 
 // JWT - rs client grants provider details.
 type JWT struct {
-	args JWTArgs
+	args JWKSArgs
 }
 
 func expToInt64(expI interface{}) (expAt int64, err error) {
@@ -200,7 +200,7 @@ func (p *JWT) ID() ID {
 }
 
 // NewJWT - initialize new jwt authenticator.
-func NewJWT(args JWTArgs) *JWT {
+func NewJWT(args JWKSArgs) *JWT {
 	return &JWT{
 		args: args,
 	}

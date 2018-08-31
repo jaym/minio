@@ -59,8 +59,8 @@ func TestJWT(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	jwt := NewJWT(JWTArgs{
-		WebKeyURL: u1,
+	jwt := NewJWT(JWKSArgs{
+		URL:       u1,
 		publicKey: keys[0],
 	})
 	if jwt.ID() != "jwt" {

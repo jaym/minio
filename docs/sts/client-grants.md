@@ -46,8 +46,8 @@ $ ETCDCTL_API=3 etcdctl get /config/iam/iam.json --print-value-only | jq .
   "identity": {
     "type": "openid",
     "openid": {
-      "jwt": {
-        "webKeyURL": "https://localhost:9443/oauth2/jwks"
+      "jwks": {
+        "url": "https://localhost:9443/oauth2/jwks"
       }
     },
     "minio": {
