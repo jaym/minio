@@ -223,27 +223,27 @@ func (sys *IAMSys) Init(objAPI ObjectLayer) error {
 
 // SetPolicy - sets policy to given user name.  If policy is empty,
 // existing policy is removed.
-func (sys *IAMSys) SetPolicy(accountName string, p iampolicy.Policy) {
+func (sys *IAMSys) SetPolicy(accessKey string, p iampolicy.Policy) {
 	sys.Lock()
 	defer sys.Unlock()
 
 	if p.IsEmpty() {
-		delete(sys.iamPolicyMap, accountName)
+		delete(sys.iamPolicyMap, accessKey)
 	} else {
-		sys.iamPolicyMap[accountName] = p
+		sys.iamPolicyMap[accessKey] = p
 	}
 }
 
 // RemovePolicy - removes policy for given account name.
-func (sys *IAMSys) RemovePolicy(accountName string) {
+func (sys *IAMSys) RemovePolicy(accessKey string) {
 	sys.Lock()
 	defer sys.Unlock()
 
-	delete(sys.iamPolicyMap, accountName)
+	delete(sys.iamPolicyMap, accessKey)
 }
 
 // SetUser - set user credentials.
-func (sys *IAMSys) SetUser(accountName string, cred auth.Credentials) error {
+func (sys *IAMSys) SetUser(accessKey string, cred auth.Credentials) error {
 	if sys.iamEtcdUsers != nil {
 		if err := sys.iamEtcdUsers.Set(cred); err != nil {
 			return err
@@ -253,14 +253,14 @@ func (sys *IAMSys) SetUser(accountName string, cred auth.Credentials) error {
 	sys.Lock()
 	defer sys.Unlock()
 
-	sys.iamUsersMap[accountName] = cred
+	sys.iamUsersMap[accessKey] = cred
 	return nil
 }
 
 // GetUser - get user credentials
-func (sys *IAMSys) GetUser(accountName string) (auth.Credentials, bool) {
+func (sys *IAMSys) GetUser(accessKey string) (cred auth.Credentials, ok bool) {
 	if sys.iamEtcdUsers != nil {
-		cred, ok := sys.iamEtcdUsers.Get(accountName)
+		cred, ok = sys.iamEtcdUsers.Get(accessKey)
 		if ok {
 			return cred, ok
 		}
@@ -269,8 +269,8 @@ func (sys *IAMSys) GetUser(accountName string) (auth.Credentials, bool) {
 	sys.RLock()
 	defer sys.RUnlock()
 
-	cred, ok := sys.iamUsersMap[accountName]
-	return cred, ok
+	cred, ok = sys.iamUsersMap[accessKey]
+	return cred, ok && cred.IsValid()
 }
 
 // IsAllowed - checks given policy args is allowed to continue the Rest API.
@@ -303,7 +303,12 @@ func (sys *IAMSys) refresh(objAPI ObjectLayer) error {
 		sys.SetPolicy(k, v)
 	}
 	for k, v := range iamCfg.Identity.Minio.Users {
-		sys.SetUser(k, v)
+		cred := auth.Credentials{
+			AccessKey: k,
+			SecretKey: v.SecretKey,
+			Status:    string(v.Status),
+		}
+		sys.SetUser(k, cred)
 	}
 	return nil
 }

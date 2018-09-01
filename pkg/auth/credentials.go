@@ -71,6 +71,7 @@ type Credentials struct {
 	SecretKey    string    `xml:"SecretAccessKey" json:"secretKey,omitempty"`
 	Expiration   time.Time `xml:"Expiration" json:"expiration,omitempty"`
 	SessionToken string    `xml:"SessionToken" json:"sessionToken,omitempty"`
+	Status       string    `xml:"-" json:"status,omitempty"`
 }
 
 // IsExpired - returns whether Credential is expired or not.
@@ -84,7 +85,11 @@ func (cred Credentials) IsExpired() bool {
 
 // IsValid - returns whether credential is valid or not.
 func (cred Credentials) IsValid() bool {
-	return IsAccessKeyValid(cred.AccessKey) && isSecretKeyValid(cred.SecretKey) && !cred.IsExpired()
+	// Verify credentials if its enabled.
+	if cred.Status == "enabled" {
+		return IsAccessKeyValid(cred.AccessKey) && isSecretKeyValid(cred.SecretKey) && !cred.IsExpired()
+	}
+	return false
 }
 
 // Equal - returns whether two credentials are equal or not.
@@ -141,6 +146,7 @@ func GetNewCredentialsWithMetadata(m map[string]interface{}, tokenSecret string)
 	if err != nil {
 		return cred, err
 	}
+	cred.Status = "enabled"
 
 	return cred, nil
 }
@@ -162,5 +168,6 @@ func CreateCredentials(accessKey, secretKey string) (cred Credentials, err error
 	cred.AccessKey = accessKey
 	cred.SecretKey = secretKey
 	cred.Expiration = timeSentinel
+	cred.Status = "enabled"
 	return cred, nil
 }

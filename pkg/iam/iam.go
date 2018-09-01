@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/minio/minio/pkg/auth"
 	"github.com/minio/minio/pkg/iam/policy"
 	"github.com/minio/minio/pkg/iam/validator"
 	xnet "github.com/minio/minio/pkg/net"
@@ -44,6 +43,20 @@ const (
 	PolicyMinio policyType = "minio"
 )
 
+type accountStatus string
+
+// Account status per user.
+const (
+	AccountEnabled  accountStatus = "enabled"
+	AccountDisabled accountStatus = "disabled"
+)
+
+// Users - Represents list of users with their corresponding secrets and current status.
+type Users map[string]struct {
+	SecretKey string        `json:"secretKey"`
+	Status    accountStatus `json:"status"`
+}
+
 // IAM implements all definitions to capture multi user
 // and external identity providers.
 type IAM struct {
@@ -54,7 +67,7 @@ type IAM struct {
 			JWKS validator.JWKSArgs `json:"jwks"`
 		} `json:"openid"`
 		Minio struct {
-			Users map[string]auth.Credentials `json:"users"`
+			Users Users `json:"users"`
 		} `json:"minio"`
 	} `json:"identity"`
 
@@ -72,7 +85,7 @@ func New() (*IAM, error) {
 	cfg := &IAM{
 		Version: "1",
 	}
-	cfg.Identity.Minio.Users = make(map[string]auth.Credentials)
+	cfg.Identity.Minio.Users = make(Users)
 	cfg.Policy.Minio.Users = make(map[string]iampolicy.Policy)
 
 	if jwksURL := os.Getenv("MINIO_IAM_JWKS_URL"); jwksURL != "" {

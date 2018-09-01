@@ -172,7 +172,7 @@ func getClaimsFromToken(r *http.Request) (map[string]interface{}, APIErrorCode) 
 }
 
 func checkRequestAuthType(ctx context.Context, r *http.Request, action policy.Action, bucketName, objectName string) (s3Err APIErrorCode) {
-	var accountName string
+	var accessKey string
 	var owner bool
 	switch getRequestAuthType(r) {
 	case authTypeUnknown:
@@ -181,7 +181,7 @@ func checkRequestAuthType(ctx context.Context, r *http.Request, action policy.Ac
 		if s3Err = isReqAuthenticatedV2(r); s3Err != ErrNone {
 			return s3Err
 		}
-		accountName, owner, s3Err = getReqAccessKeyV2(r)
+		accessKey, owner, s3Err = getReqAccessKeyV2(r)
 	case authTypeSigned, authTypePresigned:
 		region := globalServerConfig.GetRegion()
 		switch action {
@@ -191,7 +191,7 @@ func checkRequestAuthType(ctx context.Context, r *http.Request, action policy.Ac
 		if s3Err = isReqAuthenticated(r, region); s3Err != ErrNone {
 			return s3Err
 		}
-		accountName, owner, s3Err = getReqAccessKeyV4(r, region)
+		accessKey, owner, s3Err = getReqAccessKeyV4(r, region)
 	}
 	if s3Err != ErrNone {
 		return s3Err
@@ -225,9 +225,9 @@ func checkRequestAuthType(ctx context.Context, r *http.Request, action policy.Ac
 		return s3Err
 	}
 
-	if accountName == "" {
+	if accessKey == "" {
 		if globalPolicySys.IsAllowed(policy.Args{
-			AccountName:     accountName,
+			AccountName:     accessKey,
 			Action:          action,
 			BucketName:      bucketName,
 			ConditionValues: getConditionValues(r, locationConstraint),
@@ -240,7 +240,7 @@ func checkRequestAuthType(ctx context.Context, r *http.Request, action policy.Ac
 	}
 
 	if globalIAMSys.IsAllowed(iampolicy.Args{
-		AccountName:     accountName,
+		AccountName:     accessKey,
 		Action:          iampolicy.Action(action),
 		BucketName:      bucketName,
 		ConditionValues: getConditionValues(r, ""),
@@ -367,16 +367,16 @@ func (a authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // call verifies bucket policies and IAM policies, supports multi user
 // checks etc.
 func isPutAllowed(atype authType, bucketName, objectName string, r *http.Request) (s3Err APIErrorCode) {
-	var accountName string
+	var accessKey string
 	var owner bool
 	switch atype {
 	case authTypeUnknown:
 		return ErrAccessDenied
 	case authTypeSignedV2, authTypePresignedV2:
-		accountName, owner, s3Err = getReqAccessKeyV2(r)
+		accessKey, owner, s3Err = getReqAccessKeyV2(r)
 	case authTypeStreamingSigned, authTypePresigned, authTypeSigned:
 		region := globalServerConfig.GetRegion()
-		accountName, owner, s3Err = getReqAccessKeyV4(r, region)
+		accessKey, owner, s3Err = getReqAccessKeyV4(r, region)
 	}
 	if s3Err != ErrNone {
 		return s3Err
@@ -387,9 +387,9 @@ func isPutAllowed(atype authType, bucketName, objectName string, r *http.Request
 		return s3Err
 	}
 
-	if accountName == "" {
+	if accessKey == "" {
 		if globalPolicySys.IsAllowed(policy.Args{
-			AccountName:     accountName,
+			AccountName:     accessKey,
 			Action:          policy.PutObjectAction,
 			BucketName:      bucketName,
 			ConditionValues: getConditionValues(r, ""),
@@ -402,7 +402,7 @@ func isPutAllowed(atype authType, bucketName, objectName string, r *http.Request
 	}
 
 	if globalIAMSys.IsAllowed(iampolicy.Args{
-		AccountName:     accountName,
+		AccountName:     accessKey,
 		Action:          policy.PutObjectAction,
 		BucketName:      bucketName,
 		ConditionValues: getConditionValues(r, ""),
