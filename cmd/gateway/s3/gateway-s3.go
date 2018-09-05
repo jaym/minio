@@ -89,6 +89,14 @@ EXAMPLES:
      $ export MINIO_CACHE_EXCLUDE="bucket1/*;*.png"
      $ export MINIO_CACHE_EXPIRY=40
      $ export MINIO_CACHE_MAXUSE=80
+	 $ {{.HelpName}}
+
+  4. Start minio gateway server for AWS S3 backend using IAM instance credentials.
+	 NOTE: The access and secret key in this case will authenticate with minio
+	       instead of AWS.
+     $ export MINIO_S3_GATEWAY_USE_IAM_INSTANCE_CREDS=true
+     $ export MINIO_ACCESS_KEY=accesskey
+     $ export MINIO_SECRET_KEY=secretkey
      $ {{.HelpName}}
 `
 
