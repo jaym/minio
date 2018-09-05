@@ -21,11 +21,13 @@ import (
 	"encoding/json"
 	"io"
 	"math/rand"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/minio/cli"
 	miniogo "github.com/minio/minio-go"
+	"github.com/minio/minio-go/pkg/credentials"
 	"github.com/minio/minio-go/pkg/s3utils"
 	"github.com/minio/minio/cmd/logger"
 	"github.com/minio/minio/pkg/auth"
@@ -149,7 +151,7 @@ func randString(n int, src rand.Source, prefix string) string {
 }
 
 // newS3 - Initializes a new client by auto probing S3 server signature.
-func newS3(url, accessKey, secretKey string) (*miniogo.Core, error) {
+func newS3(url, accessKey, secretKey string, useIAM bool) (*miniogo.Core, error) {
 	if url == "" {
 		url = "https://s3.amazonaws.com"
 	}
@@ -160,12 +162,23 @@ func newS3(url, accessKey, secretKey string) (*miniogo.Core, error) {
 		return nil, err
 	}
 
-	clnt, err := miniogo.NewV4(endpoint, accessKey, secretKey, secure)
+	var creds *credentials.Credentials
+	if useIAM {
+		creds = credentials.NewIAM("")
+	} else {
+		creds = credentials.NewStaticV4(accessKey, secretKey, "")
+	}
+
+	clnt, err := miniogo.NewWithCredentials(endpoint, creds, secure, "")
 	if err != nil {
 		return nil, err
 	}
 	probeBucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "probe-bucket-sign-")
 	if _, err = clnt.BucketExists(probeBucketName); err != nil {
+		if useIAM {
+			return nil, err
+		}
+
 		clnt, err = miniogo.NewV2(endpoint, accessKey, secretKey, secure)
 		if err != nil {
 			return nil, err
@@ -180,8 +193,10 @@ func newS3(url, accessKey, secretKey string) (*miniogo.Core, error) {
 
 // NewGatewayLayer returns s3 ObjectLayer.
 func (g *S3) NewGatewayLayer(creds auth.Credentials) (minio.ObjectLayer, error) {
+	useIAM := os.Getenv("MINIO_S3_GATEWAY_USE_IAM_INSTANCE_CREDS") == "true"
+
 	// Probe S3 signature with input credentials.
-	clnt, err := newS3(g.host, creds.AccessKey, creds.SecretKey)
+	clnt, err := newS3(g.host, creds.AccessKey, creds.SecretKey, useIAM)
 	if err != nil {
 		return nil, err
 	}
