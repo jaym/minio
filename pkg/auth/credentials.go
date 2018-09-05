@@ -85,8 +85,8 @@ func (cred Credentials) IsExpired() bool {
 
 // IsValid - returns whether credential is valid or not.
 func (cred Credentials) IsValid() bool {
-	// Verify credentials if its enabled.
-	if cred.Status == "enabled" {
+	// Verify credentials if its enabled or not set.
+	if cred.Status == "enabled" || cred.Status == "" {
 		return IsAccessKeyValid(cred.AccessKey) && isSecretKeyValid(cred.SecretKey) && !cred.IsExpired()
 	}
 	return false
@@ -131,6 +131,7 @@ func GetNewCredentialsWithMetadata(m map[string]interface{}, tokenSecret string)
 		return cred, err
 	}
 	cred.SecretKey = string([]byte(base64.URLEncoding.EncodeToString(keyBytes))[:secretKeyMaxLen])
+	cred.Status = "enabled"
 
 	expiry, ok := m["exp"].(float64)
 	if !ok {
@@ -146,7 +147,6 @@ func GetNewCredentialsWithMetadata(m map[string]interface{}, tokenSecret string)
 	if err != nil {
 		return cred, err
 	}
-	cred.Status = "enabled"
 
 	return cred, nil
 }

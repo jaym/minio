@@ -46,9 +46,6 @@ var (
 	// Authorization validators list.
 	globalIAMValidators *validator.Validators
 
-	// Global IAM config.
-	globalIAMConfig *iam.IAM
-
 	// Global mutex to update validators list.
 	globalIAMValidatorsMu sync.RWMutex
 )
@@ -105,23 +102,6 @@ func readIAMConfig(ctx context.Context, objAPI ObjectLayer) (*iam.IAM, error) {
 	return config, nil
 }
 
-// loadIAMConfig - loads new IAM config from disk.
-func loadIAMConfig(objAPI ObjectLayer) error {
-	iamCfg, err := readIAMConfig(context.Background(), objAPI)
-	if err != nil {
-		return err
-	}
-
-	// hold the mutex lock before a new config is assigned.
-	globalIAMValidatorsMu.Lock()
-	defer globalIAMValidatorsMu.Unlock()
-
-	globalIAMConfig = iamCfg
-	globalIAMValidators = iamCfg.GetAuthValidators()
-
-	return nil
-}
-
 func initIAMConfig(objAPI ObjectLayer) error {
 	if objAPI == nil {
 		return errServerNotInitialized
@@ -144,14 +124,11 @@ func initIAMConfig(objAPI ObjectLayer) error {
 		// hold the mutex lock before a new config is assigned.
 		globalIAMValidatorsMu.Lock()
 		defer globalIAMValidatorsMu.Unlock()
-		globalIAMConfig = iamCfg
 		globalIAMValidators = iamCfg.GetAuthValidators()
 		return saveIAMConfig(context.Background(), objAPI, iamCfg)
 	}
 
-	go watchConfig(objAPI, configFile, loadIAMConfig)
-
-	return loadIAMConfig(objAPI)
+	return nil
 }
 
 // newIAMConfig - initializes a new IAM config.
@@ -183,22 +160,6 @@ func (sys *IAMSys) Init(objAPI ObjectLayer) error {
 		return err
 	}
 
-	if globalIAMConfig.Policy.Type == iam.PolicyOPA {
-		sys.iamPolicyOPA = iampolicy.NewOpa(globalIAMConfig.Policy.OPA)
-	}
-
-	if globalEtcdClient == nil && globalIAMConfig.Identity.Type == iam.IAMOpenID {
-		return errInvalidArgument
-	}
-
-	if globalEtcdClient != nil {
-		var err error
-		sys.iamEtcdUsers, err = iamusers.NewEtcdStore(globalEtcdClient)
-		if err != nil {
-			return err
-		}
-	}
-
 	if err := sys.refresh(objAPI); err != nil {
 		return err
 	}
@@ -216,7 +177,6 @@ func (sys *IAMSys) Init(objAPI ObjectLayer) error {
 			}
 		}
 	}()
-
 	return nil
 
 }
@@ -245,9 +205,7 @@ func (sys *IAMSys) RemovePolicy(accessKey string) {
 // SetUser - set user credentials.
 func (sys *IAMSys) SetUser(accessKey string, cred auth.Credentials) error {
 	if sys.iamEtcdUsers != nil {
-		if err := sys.iamEtcdUsers.Set(cred); err != nil {
-			return err
-		}
+		return sys.iamEtcdUsers.Set(cred)
 	}
 
 	sys.Lock()
@@ -259,6 +217,9 @@ func (sys *IAMSys) SetUser(accessKey string, cred auth.Credentials) error {
 
 // GetUser - get user credentials
 func (sys *IAMSys) GetUser(accessKey string) (cred auth.Credentials, ok bool) {
+	sys.RLock()
+	defer sys.RUnlock()
+
 	if sys.iamEtcdUsers != nil {
 		cred, ok = sys.iamEtcdUsers.Get(accessKey)
 		if ok {
@@ -266,22 +227,19 @@ func (sys *IAMSys) GetUser(accessKey string) (cred auth.Credentials, ok bool) {
 		}
 	}
 
-	sys.RLock()
-	defer sys.RUnlock()
-
 	cred, ok = sys.iamUsersMap[accessKey]
 	return cred, ok && cred.IsValid()
 }
 
 // IsAllowed - checks given policy args is allowed to continue the Rest API.
 func (sys *IAMSys) IsAllowed(args iampolicy.Args) bool {
+	sys.RLock()
+	defer sys.RUnlock()
+
 	// If opa is configured, let the policy arrive from Opa
 	if sys.iamPolicyOPA != nil {
 		return sys.iamPolicyOPA.IsAllowed(args)
 	}
-
-	sys.RLock()
-	defer sys.RUnlock()
 
 	// If policy is available for given user, check the policy.
 	if p, found := sys.iamPolicyMap[args.AccountName]; found {
@@ -299,17 +257,43 @@ func (sys *IAMSys) refresh(objAPI ObjectLayer) error {
 	if err != nil {
 		return err
 	}
-	for k, v := range iamCfg.Policy.Minio.Users {
-		sys.SetPolicy(k, v)
+
+	// hold the mutex lock before a new validator is assigned.
+	globalIAMValidatorsMu.Lock()
+	defer globalIAMValidatorsMu.Unlock()
+	globalIAMValidators = iamCfg.GetAuthValidators()
+
+	sys.Lock()
+	defer sys.Unlock()
+
+	if iamCfg.Policy.Type == iam.PolicyOPA {
+		sys.iamPolicyOPA = iampolicy.NewOpa(iamCfg.Policy.OPA)
 	}
-	for k, v := range iamCfg.Identity.Minio.Users {
-		cred := auth.Credentials{
-			AccessKey: k,
-			SecretKey: v.SecretKey,
-			Status:    string(v.Status),
+
+	if globalEtcdClient == nil && iamCfg.Identity.Type == iam.IAMOpenID {
+		return errInvalidArgument
+	}
+
+	if globalEtcdClient != nil {
+		sys.iamEtcdUsers, err = iamusers.NewEtcdStore(globalEtcdClient)
+		if err != nil {
+			return err
 		}
-		sys.SetUser(k, cred)
 	}
+
+	sys.iamUsersMap = make(map[string]auth.Credentials)
+	sys.iamPolicyMap = make(map[string]iampolicy.Policy)
+	for k, v := range iamCfg.Identity.Minio.Users {
+		if v.Status == iam.AccountEnabled {
+			sys.iamUsersMap[k] = auth.Credentials{
+				AccessKey: k,
+				SecretKey: v.SecretKey,
+				Status:    string(v.Status),
+			}
+			sys.iamPolicyMap[k] = iamCfg.Policy.Minio.Users[k]
+		}
+	}
+
 	return nil
 }
 
