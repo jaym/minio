@@ -143,7 +143,9 @@ func StartGateway(ctx *cli.Context, gw Gateway) {
 	logger.FatalIf(checkPortAvailability(globalMinioPort), "Unable to start the server")
 
 	// Validate if we have access, secret set through environment.
-	if !globalIsEnvCreds {
+	// avoid this for s3 gateway specifically since it supports
+	// multiple modes of authentication.
+	if !globalIsEnvCreds && gatewayName != "s3" {
 		logger.Fatal(uiErrEnvCredentialsMissingGateway(nil), "Unable to start gateway")
 	}
 
