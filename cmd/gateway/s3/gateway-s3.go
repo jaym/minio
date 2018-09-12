@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"io"
 	"math/rand"
-	"os"
+	"net/http"
 	"strings"
 	"time"
 
@@ -91,13 +91,6 @@ EXAMPLES:
      $ export MINIO_CACHE_MAXUSE=80
 	 $ {{.HelpName}}
 
-  4. Start minio gateway server for AWS S3 backend using IAM instance credentials.
-	 NOTE: The access and secret key in this case will authenticate with minio
-	       instead of AWS.
-     $ export MINIO_S3_GATEWAY_USE_IAM_INSTANCE_CREDS=true
-     $ export MINIO_ACCESS_KEY=accesskey
-     $ export MINIO_SECRET_KEY=secretkey
-     $ {{.HelpName}}
 `
 
 	minio.RegisterGatewayCommand(cli.Command{
@@ -159,7 +152,7 @@ func randString(n int, src rand.Source, prefix string) string {
 }
 
 // newS3 - Initializes a new client by auto probing S3 server signature.
-func newS3(url, accessKey, secretKey string, useIAM bool) (*miniogo.Core, error) {
+func newS3(url string) (*miniogo.Core, error) {
 	if url == "" {
 		url = "https://s3.amazonaws.com"
 	}
@@ -170,30 +163,36 @@ func newS3(url, accessKey, secretKey string, useIAM bool) (*miniogo.Core, error)
 		return nil, err
 	}
 
-	var creds *credentials.Credentials
-	if useIAM {
-		creds = credentials.NewIAM("")
-	} else {
-		creds = credentials.NewStaticV4(accessKey, secretKey, "")
-	}
+	// Chains all credential types, in the following order:
+	//      - Static credentials provided by user
+	//      - AWS env vars (i.e. AWS_ACCESS_KEY_ID)
+	//  - Minio env vars (i.e. MINIO_ACCESS_KEY)
+	//  - IAM profile based credentials. (performs an HTTP
+	//    call to a pre-defined endpoint, only valid inside
+	//    configured ec2 instances)
+	//  - AWS creds file (i.e. AWS_SHARED_CREDENTIALS_FILE or ~/.aws/credentials)
+	//  - Minio creds file (i.e. MINIO_SHARED_CREDENTIALS_FILE or ~/.mc/config.json)
+	creds := credentials.NewChainCredentials([]credentials.Provider{
+		&credentials.EnvAWS{},
+		&credentials.EnvMinio{},
+		&credentials.IAM{
+			Client: &http.Client{
+				Transport: minio.NewCustomHTTPTransport(),
+			},
+		},
+		&credentials.FileAWSCredentials{},
+		&credentials.FileMinioClient{},
+	})
 
 	clnt, err := miniogo.NewWithCredentials(endpoint, creds, secure, "")
 	if err != nil {
 		return nil, err
 	}
-	probeBucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "probe-bucket-sign-")
-	if _, err = clnt.BucketExists(probeBucketName); err != nil {
-		if useIAM {
-			return nil, err
-		}
 
-		clnt, err = miniogo.NewV2(endpoint, accessKey, secretKey, secure)
-		if err != nil {
-			return nil, err
-		}
-		if _, err = clnt.BucketExists(probeBucketName); err != nil {
-			return nil, err
-		}
+	probeBucketName := randString(60, rand.NewSource(time.Now().UnixNano()), "probe-bucket-sign-")
+	// Check if the provided keys are valid.
+	if _, err = clnt.BucketExists(probeBucketName); err != nil {
+		return nil, err
 	}
 
 	return &miniogo.Core{Client: clnt}, nil
@@ -201,10 +200,9 @@ func newS3(url, accessKey, secretKey string, useIAM bool) (*miniogo.Core, error)
 
 // NewGatewayLayer returns s3 ObjectLayer.
 func (g *S3) NewGatewayLayer(creds auth.Credentials) (minio.ObjectLayer, error) {
-	useIAM := os.Getenv("MINIO_S3_GATEWAY_USE_IAM_INSTANCE_CREDS") == "true"
-
-	// Probe S3 signature with input credentials.
-	clnt, err := newS3(g.host, creds.AccessKey, creds.SecretKey, useIAM)
+	// creds are ignored here, since S3 gateway implements chaining
+	// all credentials.
+	clnt, err := newS3(g.host)
 	if err != nil {
 		return nil, err
 	}
