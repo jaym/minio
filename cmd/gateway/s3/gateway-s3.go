@@ -89,8 +89,16 @@ EXAMPLES:
      $ export MINIO_CACHE_EXCLUDE="bucket1/*;*.png"
      $ export MINIO_CACHE_EXPIRY=40
      $ export MINIO_CACHE_MAXUSE=80
-	 $ {{.HelpName}}
+     $ {{.HelpName}}
 
+  4. Start minio gateway server for AWS S3 backend using AWS environment variables.
+     NOTE: The access and secret key in this case will authenticate with Minio instead
+     of AWS and AWS envs will be used to authenticate to AWS S3.
+     $ export AWS_ACCESS_KEY_ID=aws_access_key
+     $ export AWS_SECRET_ACCESS_KEY=aws_secret_key
+     $ export MINIO_ACCESS_KEY=accesskey
+     $ export MINIO_SECRET_KEY=secretkey
+     $ {{.HelpName}}
 `
 
 	minio.RegisterGatewayCommand(cli.Command{
@@ -164,24 +172,21 @@ func newS3(url string) (*miniogo.Core, error) {
 	}
 
 	// Chains all credential types, in the following order:
-	//      - Static credentials provided by user
-	//      - AWS env vars (i.e. AWS_ACCESS_KEY_ID)
-	//  - Minio env vars (i.e. MINIO_ACCESS_KEY)
+	//  - AWS env vars (i.e. AWS_ACCESS_KEY_ID)
 	//  - IAM profile based credentials. (performs an HTTP
 	//    call to a pre-defined endpoint, only valid inside
 	//    configured ec2 instances)
 	//  - AWS creds file (i.e. AWS_SHARED_CREDENTIALS_FILE or ~/.aws/credentials)
-	//  - Minio creds file (i.e. MINIO_SHARED_CREDENTIALS_FILE or ~/.mc/config.json)
+	//  - Static credentials provided by user (i.e. MINIO_ACCESS_KEY)
 	creds := credentials.NewChainCredentials([]credentials.Provider{
 		&credentials.EnvAWS{},
-		&credentials.EnvMinio{},
 		&credentials.IAM{
 			Client: &http.Client{
 				Transport: minio.NewCustomHTTPTransport(),
 			},
 		},
 		&credentials.FileAWSCredentials{},
-		&credentials.FileMinioClient{},
+		&credentials.EnvMinio{},
 	})
 
 	clnt, err := miniogo.NewWithCredentials(endpoint, creds, secure, "")

@@ -145,7 +145,7 @@ func StartGateway(ctx *cli.Context, gw Gateway) {
 	// Validate if we have access, secret set through environment.
 	// avoid this for s3 gateway specifically since it supports
 	// multiple modes of authentication.
-	if !globalIsEnvCreds && gatewayName != "s3" {
+	if !globalIsEnvCreds {
 		logger.Fatal(uiErrEnvCredentialsMissingGateway(nil), "Unable to start gateway")
 	}
 

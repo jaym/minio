@@ -37,9 +37,7 @@ func printGatewayStartupMessage(apiEndPoints []string, backendType string) {
 
 	// Prints `mc` cli configuration message chooses
 	// first endpoint as default.
-	if globalIsEnvCreds {
-		printCLIAccessMsg(strippedAPIEndpoints[0], fmt.Sprintf("my%s", backendType))
-	}
+	printCLIAccessMsg(strippedAPIEndpoints[0], fmt.Sprintf("my%s", backendType))
 
 	// Prints documentation message.
 	printObjectAPIMsg()
@@ -59,10 +57,8 @@ func printGatewayCommonMsg(apiEndpoints []string) {
 	apiEndpointStr := strings.Join(apiEndpoints, "  ")
 	// Colorize the message and print.
 	logger.StartupMessage(colorBlue("\nEndpoint: ") + colorBold(fmt.Sprintf(getFormatStr(len(apiEndpointStr), 1), apiEndpointStr)))
-	if globalIsEnvCreds {
-		logger.StartupMessage(colorBlue("AccessKey: ") + colorBold(fmt.Sprintf("%s ", cred.AccessKey)))
-		logger.StartupMessage(colorBlue("SecretKey: ") + colorBold(fmt.Sprintf("%s ", cred.SecretKey)))
-	}
+	logger.StartupMessage(colorBlue("AccessKey: ") + colorBold(fmt.Sprintf("%s ", cred.AccessKey)))
+	logger.StartupMessage(colorBlue("SecretKey: ") + colorBold(fmt.Sprintf("%s ", cred.SecretKey)))
 
 	if globalIsBrowserEnabled {
 		logger.StartupMessage(colorBlue("\nBrowser Access:"))
